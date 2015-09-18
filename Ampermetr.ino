@@ -4,7 +4,12 @@
 #include <SPI.h>
 #include <SD.h>
 
-#define BUTTON_DEBOUNCE_TIME    200
+#define PROFILE     1
+#ifdef PROFILE
+unsigned long measureTime;
+#endif
+
+#define BUTTON_DEBOUNCE_TIME    100
 
 #define SD_CS    4  // Chip select line for SD card
 
@@ -34,13 +39,15 @@ const byte PORTS[] = { A6, 0, A0, A1, A2, A3 }; // internal ref., VCC, U1, I1, U
 bool lastInternalState[sizeof(PORTS)] = { true, false, true, true, true, true };
 byte lastReference = 255; // impossible value
 
-unsigned int refVoltage10;
-unsigned int vccVoltage10;
+unsigned long refVoltage10;
+unsigned long vccVoltage10;
 
 unsigned int refVoltage;
 unsigned int vccVoltage;
 
 unsigned long mAh;
+
+bool active[4] = { false, false, false, true };
 
 bool sdcard;
 
@@ -122,33 +129,32 @@ int AnalogRead(byte index)
         lastInternalState[index] = internal;
         value = setReferenceAndRead(port, internal);
     }
-    else if (!internal && value < ((unsigned long)refVoltage * ANALOG_MAX / vccVoltage)) {
+    else if (!internal && value < ((long)refVoltage * ANALOG_MAX / vccVoltage)) {
         internal = true;
         lastInternalState[index] = internal;
         value = setReferenceAndRead(port, internal);
     }
 
     for(byte i = 1; i < PRECCOUNT[precision]; i++)
-        value += analogRead(port);
+        // value += analogRead(port);
+        value += setReferenceAndRead(port, internal);
 
     return internal ? value : -value;
 }
 
 void updateReferenceVoltages()
 {
-    int portValues[sizeof(PORTS)];
-    for(byte i = 0; i < sizeof(PORTS); i++) {
-        portValues[i] = AnalogRead(i);
-    }
+    unsigned ref = AnalogRead(0);  // voltage on pin A6 - 1.000 V ~ 932 in 10bit precision
+    unsigned vcc = AnalogRead(1);  // voltage of internal reference (cca 1.1 V) against VCC ~ 228 in 10bit precision
 
-    refVoltage10 = ANALOG_MAX * 10000UL * (1 << precision) / (portValues[0] >> precision);
-    vccVoltage10 = (unsigned long)refVoltage10 * ANALOG_MAX * (1 << precision) / (portValues[1] >> precision);
+    refVoltage10 = ANALOG_MAX * 10000UL * (1 << precision) / (ref >> precision); // in 100 microVolt units
+    vccVoltage10 = (unsigned long)refVoltage10 * ANALOG_MAX * (1 << precision) / (vcc >> precision); // in 100 microVolt units
 
-    refVoltage = (refVoltage10 + 5) / 10;
-    vccVoltage = (vccVoltage10 + 5) / 10;
+    refVoltage = (refVoltage10 + 5) / 10; // rounded up, in milliVolts
+    vccVoltage = (vccVoltage10 + 5) / 10; // rounded up, in milliVolts
 
     tft.setCursor(40, 0);
-    tft.print(portValues[0]);
+    tft.print(ref);
     tft.print(F("  "));
     tft.print(refVoltage10 / 10);
     tft.print('.');
@@ -156,7 +162,7 @@ void updateReferenceVoltages()
     tft.print(F("mV "));
 
     tft.setCursor(40, 10);
-    tft.print(portValues[1]);
+    tft.print(vcc);
     tft.print(F("  "));
     tft.print(vccVoltage10 / 10);
     tft.print('.');
@@ -189,6 +195,10 @@ void button2(void)
     }
     lastTime = curTime;
 }
+
+void measure(int);
+void menu(int);
+void displayValues(int);
 
 void setup(void)
 {
@@ -228,7 +238,7 @@ void setup(void)
     tft.print(F("USB I: "));
 
     tft.setCursor(0, 80);
-    tft.print(F("FPS:"));
+    tft.print(F("Time:"));
 
     updateReferenceVoltages();
 
@@ -236,64 +246,69 @@ void setup(void)
 
     tasker.setInterval(measure, 1000);
     tasker.setInterval(menu, 100);
-    //tasker.setInterval(displayValues, 1000);
+    tasker.setInterval(displayValues, 1000);
     tasker.run();
 }
 
 void loop() { }
 
-byte updateReferenceVoltagesTimer = 0; // always
+byte updateReferenceVoltagesTimer = 10;
 
-int portValues[sizeof(PORTS)];
+int portValues[4];
 unsigned long milli[4];
 
 void measure(int)
 {
+#ifdef PROFILE
+    measureTime = millis();
+#endif
     static byte updateRefCounter;
-    if (updateRefCounter++ > updateReferenceVoltagesTimer) {
+    if (++updateRefCounter > updateReferenceVoltagesTimer) {
         updateReferenceVoltages();
         updateRefCounter = 0;
     }
 
-    for(byte i = 2; i < sizeof(PORTS); i++) {
-        portValues[i] = AnalogRead(i);
-    }
-
     for(byte i = 0; i < 4; i++) {
-        byte idx = i + 2;
-        long val = portValues[idx];
+		if (!active[i]) continue;
+        portValues[i] = AnalogRead(2+i);
+        long val = portValues[i];
         milli[i] = (val < 0) ? (-val * vccVoltage) : (val * refVoltage);
     }
-
-    displayValues();
+#ifdef PROFILE
+    measureTime = millis() - measureTime;
+#endif
 }
 
-void displayValues()
+void displayValues(int)
 {
+if (active[0]) {
     tft.setCursor(40, 20);
-    tft.print(portValues[2]);
+    tft.print(portValues[0]);
     tft.print(F("  "));
-    unsigned long u1 = milli[0] * DIVIDER_U1 / ANALOG_MAX;
+    unsigned long u1 = milli[0] * DIVIDER_U1 / ANALOG_MAX / PRECCOUNT[precision];
     tft.print(u1);
     tft.print(F("mV  "));
-
+}
+if (active[1]) {
     tft.setCursor(40, 30);
-    tft.print(portValues[3]);
+    tft.print(portValues[1]);
     tft.print(F("  "));
-    tft.print(milli[1] / ANALOG_MAX);
+    tft.print(milli[1] / ANALOG_MAX / PRECCOUNT[precision]);
     tft.print(F("mA  "));
-
+}
+if (active[2]) {
     tft.setCursor(40, 40);
-    tft.print(portValues[4]);
+    tft.print(portValues[2]);
     tft.print(F("  "));
-    unsigned long u2 = milli[2] * DIVIDER_U2 / ANALOG_MAX;
+    unsigned long u2 = milli[2] * DIVIDER_U2 / ANALOG_MAX / PRECCOUNT[precision];
     tft.print(u2);
     tft.print(F("mV  "));
-
+}
+if (active[3]) {
     tft.setCursor(40, 50);
-    tft.print(portValues[5]);
+    tft.print(portValues[3]);
     tft.print(F("  "));
-    tft.print(milli[3] / ANALOG_MAX);
+    tft.print(milli[3] / ANALOG_MAX / PRECCOUNT[precision]);
     tft.print(F("mA  "));
 
     mAh += milli[3] / ANALOG_MAX;
@@ -301,12 +316,11 @@ void displayValues()
     tft.setCursor(0, 60);
     tft.print(mAh / 3600);
     tft.print(F(" mAh "));
-/*
+}
     tft.setCursor(30, 80);
-    unsigned fps = 1000 / delta;
-    tft.print(fps);
-    tft.print(F("  "));
-*/    
+    tft.print(measureTime);
+    tft.print(F(" ms "));
+    
 /*
     for(byte i = 0; i < sizeof(PORTS); i++) {
         tft.setCursor(120, i*10);
