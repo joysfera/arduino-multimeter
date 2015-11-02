@@ -48,7 +48,7 @@ unsigned long vccVoltage10;
 unsigned int refVoltage;
 unsigned int vccVoltage;
 
-unsigned long mAh;
+unsigned long mAs1, mAs2;
 
 volatile bool active[4] = { false, false, false, true };
 volatile bool largeDisplay;
@@ -219,6 +219,7 @@ void setup(void)
         sdcard = true;
 
     tft.initR(INITR_BLACKTAB);
+    tft.setTextWrap(false);
 
     pinMode(3, INPUT_PULLUP);
     pinMode(5, INPUT_PULLUP);
@@ -275,29 +276,58 @@ void displayValues(int)
     unsigned long i1 = milli[1] / ANALOG_MAX / PRECCOUNT[precision];
     unsigned long u2 = milli[2] * DIVIDER_U2 / ANALOG_MAX / PRECCOUNT[precision];
     unsigned long i2 = milli[3] / ANALOG_MAX / PRECCOUNT[precision];
+    mAs1 += i1;
+    mAs2 += i2;
 
     if (printHeader) {
         tft.fillScreen(ST7735_BLACK);
-        tft.setTextColor(ST7735_WHITE, ST7735_BLACK);
-        tft.setTextSize(largeDisplay ? 5 : 1);
-        tft.setRotation(largeDisplay ? 3 : 0);
     }
     
+    tft.setTextColor(ST7735_WHITE, ST7735_BLACK);
     if (largeDisplay) {
         printHeader = false;
-        tft.setCursor(5, 5);
+        tft.setTextSize(1);
+        tft.setCursor(4, 1);
         unsigned long val;
-        if (active[0])
+        bool mA = false;
+        unsigned long mAs;
+        if (active[0]) {
             val = u1;
-        else if (active[1])
+            mAs = mAs1;
+            tft.print(F("Jack ch: voltage [mV]"));
+        }
+        else if (active[1]) {
             val = i1;
-        else if (active[2])
+            mA = true;
+            mAs = mAs1;
+            tft.print(F("Jack ch: current [mA]"));
+        }
+        else if (active[2]) {
             val = u2;
-        else if (active[3])
+            mAs = mAs2;
+            tft.print(F("USB ch: voltage [mV] "));
+        }
+        else if (active[3]) {
             val = i2;
+            mA = true;
+            mAs = mAs2;
+            tft.print(F("USB ch: current [mA] "));
+        }
+
+        tft.setTextColor(ST7735_YELLOW, ST7735_BLACK);
+        tft.setTextSize(4);
+        tft.setCursor(8, 12);
         tft.print(val);
+        tft.clreol();
+
+        tft.setCursor(8, 56);
+        if (mA) {
+            tft.print(mAs / 3600);
+        }
+        tft.clreol();
     }
     else {
+        tft.setTextSize(1);
         if (printHeader) {
             tft.setCursor(0, 0);
             tft.print(F("Refer: "));
@@ -330,7 +360,8 @@ void displayValues(int)
             tft.print(refVoltage10 / 10);
             tft.print('.');
             tft.print(refVoltage10 % 10);
-            tft.print(F("mV "));
+            tft.print(F(" mV"));
+            tft.clreol();
 
             tft.setCursor(40, 10);
             tft.print(vcc);
@@ -338,7 +369,8 @@ void displayValues(int)
             tft.print(vccVoltage10 / 10);
             tft.print('.');
             tft.print(vccVoltage10 % 10);
-            tft.print(F("mV "));
+            tft.print(F(" mV"));
+            tft.clreol();
 
             displayReference = false;
         }
@@ -348,10 +380,11 @@ void displayValues(int)
         tft.print(portValues[0]);
         tft.print(F("  "));
         tft.print(u1);
-        tft.print(F("mV  "));
+        tft.print(F(" mV"));
+        tft.clreol();
     }
     else if (clearPrintedData) {
-        tft.print(F("        "));
+        tft.clreol();
     }
 
         tft.setCursor(40, 30);
@@ -359,10 +392,11 @@ void displayValues(int)
         tft.print(portValues[1]);
         tft.print(F("  "));
         tft.print(i1);
-        tft.print(F("mA  "));
+        tft.print(F(" mA"));
+        tft.clreol();
     }
     else if (clearPrintedData) {
-        tft.print(F("        "));
+        tft.clreol();
     }
 
         tft.setCursor(40, 40);
@@ -370,10 +404,11 @@ void displayValues(int)
         tft.print(portValues[2]);
         tft.print(F("  "));
         tft.print(u2);
-        tft.print(F("mV  "));
+        tft.print(F(" mV"));
+        tft.clreol();
     }
     else if (clearPrintedData) {
-        tft.print(F("        "));
+        tft.clreol();
     }
 
         tft.setCursor(40, 50);
@@ -381,23 +416,25 @@ void displayValues(int)
         tft.print(portValues[3]);
         tft.print(F("  "));
         tft.print(i2);
-        tft.print(F("mA  "));
-
-        mAh += milli[3] / ANALOG_MAX;
+        tft.print(F(" mA"));
+        tft.clreol();
 
         tft.setCursor(0, 60);
-        tft.print(mAh / 3600);
-        tft.print(F(" mAh "));
+        tft.print(mAs2 / 3600);
+        tft.print(F(" mAh"));
+        tft.clreol();
     }
     else if (clearPrintedData) {
-        tft.print(F("        "));
+        tft.clreol();
     }
 
         clearPrintedData = false;
-    
+
+        // debug info
         tft.setCursor(30, 80);
         tft.print(measureTime);
-        tft.print(F(" ms "));
+        tft.print(F(" ms"));
+        tft.clreol();
 
 /*
         for(byte i = 0; i < sizeof(PORTS); i++) {
