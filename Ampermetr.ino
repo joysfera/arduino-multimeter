@@ -1,3 +1,24 @@
+/*
+ * Arduino Dual Channel Digital Multimeter
+
+ * created by Petr Stehlik in 2015
+
+ * petr@pstehlik.cz
+
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <EnableInterrupt.h>
 #include <Adafruit_GFX.h>    // Core graphics library
 #include <Adafruit_ST7735.h> // Hardware-specific library
@@ -25,11 +46,11 @@ Tasker tasker;
 
 #define MOSFET_PIN 9
 
-enum PREC { PR10, PR11, PR12 };
+enum PREC { PR10 = 0, PR11, PR12 };
+const byte PRECSHIFT[] = { 0, 2, 4 };
 const byte PRECCOUNT[] = { 1, 4, 16 };
-PREC precision = PR10;
 
-#define ANALOG_MAX 1023
+PREC precision = PR10;
 
 #define DIVIDER_U1 253UL / 50
 #define DIVIDER_U2 253UL / 50
@@ -89,7 +110,7 @@ unsigned int readVcc()
     delay(2); // Wait for Vref to settle
 
     unsigned int result = 0;
-    for(byte i = 0; i < PRECCOUNT[precision]; i++) {
+    for(byte i = PRECCOUNT[precision]; i--; i) {
         ADCSRA |= _BV(ADSC); // Start conversion
         while (bit_is_set(ADCSRA,ADSC)); // measuring
         result += ADCW;
@@ -98,13 +119,15 @@ unsigned int readVcc()
     return result;
 }
 
-unsigned int mujAnalogRead(byte port, byte reference)
+unsigned int myAnalogRead(byte port, byte reference)
 {
     ADMUX = (reference << 6) | (port & 0x07);
     delay(5);
+#if 1 // throwaway
     ADCSRA |= _BV(ADSC); // Start conversion
     while (bit_is_set(ADCSRA,ADSC)); // measuring
-    // return ADCW; // zahodit
+    //(void)ADCW; // throw away
+#endif
     ADCSRA |= _BV(ADSC); // Start conversion
     while (bit_is_set(ADCSRA,ADSC)); // measuring
     return ADCW;
@@ -121,7 +144,7 @@ inline int setReferenceAndRead(byte port, bool isInternalReference)
     }
     return analogRead(port);
 #else
-    return mujAnalogRead(port-14, isInternalReference ? INTERNAL : DEFAULT);
+    return myAnalogRead(port-14, isInternalReference ? INTERNAL : DEFAULT);
 #endif
 }
 
@@ -134,20 +157,21 @@ int AnalogRead(byte index)
     bool internal = lastInternalState[index];
     int value = setReferenceAndRead(port, internal);
 
-    if (internal && value == ANALOG_MAX) { // overflow
+    if (internal && value == 1023) { // overflow
         internal = false;
         lastInternalState[index] = internal;
         value = setReferenceAndRead(port, internal);
     }
-    else if (!internal && value < ((long)refVoltage * ANALOG_MAX / vccVoltage)) {
+    else if (!internal && value < (((long)refVoltage << 10) / vccVoltage)) {
         internal = true;
         lastInternalState[index] = internal;
         value = setReferenceAndRead(port, internal);
     }
 
-    for(byte i = 1; i < PRECCOUNT[precision]; i++)
+    for(byte i = PRECCOUNT[precision] - 1; i--; i) {
         // value += analogRead(port);
         value += setReferenceAndRead(port, internal);
+    }
 
     return internal ? value : -value;
 }
@@ -157,8 +181,8 @@ void updateReferenceVoltages()
     ref = AnalogRead(0);  // voltage on pin A6 - 1.000 V ~ 932 in 10bit precision
     vcc = AnalogRead(1);  // voltage of internal reference (cca 1.1 V) against VCC ~ 228 in 10bit precision
 
-    refVoltage10 = ANALOG_MAX * 10000UL * (1 << precision) / (ref >> precision); // in 100 microVolt units
-    vccVoltage10 = (unsigned long)refVoltage10 * ANALOG_MAX * (1 << precision) / (vcc >> precision); // in 100 microVolt units
+    refVoltage10 = (10000UL << 10) * (1 << precision) / (ref >> precision); // in 100 microVolt units
+    vccVoltage10 = ((unsigned long)refVoltage10 << 10) * (1 << precision) / (vcc >> precision); // in 100 microVolt units
 
     refVoltage = (refVoltage10 + 5) / 10; // rounded up, in milliVolts
     vccVoltage = (vccVoltage10 + 5) / 10; // rounded up, in milliVolts
@@ -272,10 +296,10 @@ void measure(int)
 
 void displayValues(int)
 {
-    unsigned long u1 = milli[0] * DIVIDER_U1 / ANALOG_MAX / PRECCOUNT[precision];
-    unsigned long i1 = milli[1] / ANALOG_MAX / PRECCOUNT[precision];
-    unsigned long u2 = milli[2] * DIVIDER_U2 / ANALOG_MAX / PRECCOUNT[precision];
-    unsigned long i2 = milli[3] / ANALOG_MAX / PRECCOUNT[precision];
+    unsigned long u1 = (milli[0] * DIVIDER_U1) >> (PRECSHIFT[precision] + 10);
+    unsigned int i1 = milli[1] >> (PRECSHIFT[precision] + 10);
+    unsigned int u2 = (milli[2] * DIVIDER_U2) >> (PRECSHIFT[precision] + 10);
+    unsigned int i2 = milli[3] >> (PRECSHIFT[precision] + 10);
     mAs1 += i1;
     mAs2 += i2;
 
@@ -444,6 +468,31 @@ void displayValues(int)
 */
     }
 }
+
+void printXdigits(int number, byte digits, bool leadingZero)
+{
+    char lead = leadingZero ? '0' : ' ';
+    if (digits >= 4 && number < 1000)
+        tft.print(lead);
+    if (digits >= 3 && number < 100)
+        tft.print(lead);
+    if (digits >= 2 && number < 10)
+        tft.print(lead);
+    tft.print(number);
+}
+/*
+void printXdigits(float number, byte digits, byte digits2, bool leadingZero)
+{
+    char lead = leadingZero ? '0' : ' ';
+    if (digits >= 4 && number < 1000)
+        tft.print(lead);
+    if (digits >= 3 && number < 100)
+        tft.print(lead);
+    if (digits >= 2 && number < 10)
+        tft.print(lead);
+    tft.print(number, digits2);
+}
+*/
 
 #ifdef USE_MENU
 void menu(int)
