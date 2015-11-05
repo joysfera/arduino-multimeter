@@ -181,8 +181,8 @@ void updateReferenceVoltages()
     ref = AnalogRead(0);  // voltage on pin A6 - 1.000 V ~ 932 in 10bit precision
     vcc = AnalogRead(1);  // voltage of internal reference (cca 1.1 V) against VCC ~ 228 in 10bit precision
 
-    refVoltage10 = (10000UL << 10) * (1 << precision) / (ref >> precision); // in 100 microVolt units
-    vccVoltage10 = ((unsigned long)refVoltage10 << 10) * (1 << precision) / (vcc >> precision); // in 100 microVolt units
+    refVoltage10 = (10000UL << (10 + precision)) / (ref >> precision); // in 100 microVolt units
+    vccVoltage10 = ((unsigned long)refVoltage10 << (10 + precision)) / (vcc >> precision); // in 100 microVolt units
 
     refVoltage = (refVoltage10 + 5) / 10; // rounded up, in milliVolts
     vccVoltage = (vccVoltage10 + 5) / 10; // rounded up, in milliVolts
@@ -265,7 +265,31 @@ void setup(void)
     tasker.run();
 }
 
+// loop() is unused as all tasks are called by Tasker
 void loop() { }
+
+// right aligned print
+void rprint(unsigned long number, byte digits, bool leadingZero = false)
+{
+    if (digits > 1 && digits < 10) {
+        char lead = leadingZero ? '0' : ' ';
+        unsigned long range = 10;
+        for(byte i = digits-1; i--; i) {
+            if (number < range)
+                tft.print(lead);
+            range *= 10;
+        }
+    }
+    tft.print(number);
+}
+
+// right aligned print of value / 10
+void rprint10(unsigned long value, byte digits, bool leadingZero = false)
+{
+    rprint(value / 10, digits);
+    tft.print('.');
+    tft.print(value % 10);
+}
 
 byte updateReferenceVoltagesTimer = 10;
 
@@ -318,52 +342,50 @@ void displayValues(int)
         if (active[0]) {
             val = u1;
             mAs = mAs1;
-            tft.print(F("Jack ch: voltage [mV]"));
+            tft.print(F("Jack: voltage [mV]"));
         }
         else if (active[1]) {
             val = i1;
             mA = true;
             mAs = mAs1;
-            tft.print(F("Jack ch: current [mA]"));
+            tft.print(F("Jack: current [mA]"));
         }
         else if (active[2]) {
             val = u2;
             mAs = mAs2;
-            tft.print(F("USB ch: voltage [mV] "));
+            tft.print(F("USB: voltage [mV] "));
         }
         else if (active[3]) {
             val = i2;
             mA = true;
             mAs = mAs2;
-            tft.print(F("USB ch: current [mA] "));
+            tft.print(F("USB: current [mA] "));
         }
 
         tft.setTextColor(ST7735_YELLOW, ST7735_BLACK);
         tft.setTextSize(4);
         tft.setCursor(8, 12);
-        tft.print(val);
-        tft.clreol();
+        rprint(val, 5);
 
         tft.setCursor(8, 56);
         if (mA) {
-            tft.print(mAs / 3600);
+            rprint(mAs / 3600, 5);
         }
-        tft.clreol();
     }
     else {
         tft.setTextSize(1);
         if (printHeader) {
             tft.setCursor(0, 0);
-            tft.print(F("Refer: "));
+            tft.print(F("Ref: "));
 
             tft.setCursor(0, 10);
             tft.print(F("VCC: "));
 
             tft.setCursor(0, 20);
-            tft.print(F("Jack U: "));
+            tft.print(F("JackU: "));
 
             tft.setCursor(0, 30);
-            tft.print(F("Jack I: "));
+            tft.print(F("JackI: "));
 
             tft.setCursor(0, 40);
             tft.print(F("USB U: "));
@@ -378,75 +400,59 @@ void displayValues(int)
         }
 
         if (displayReference) {
-            tft.setCursor(40, 0);
-            tft.print(ref);
-            tft.print(F("  "));
-            tft.print(refVoltage10 / 10);
-            tft.print('.');
-            tft.print(refVoltage10 % 10);
+            tft.setCursor(30, 0);
+            rprint(ref, 5);
+            rprint10(refVoltage10, 6);
             tft.print(F(" mV"));
             tft.clreol();
 
-            tft.setCursor(40, 10);
-            tft.print(vcc);
-            tft.print(F("  "));
-            tft.print(vccVoltage10 / 10);
-            tft.print('.');
-            tft.print(vccVoltage10 % 10);
+            tft.setCursor(30, 10);
+            rprint(vcc, 5);
+            rprint10(vccVoltage10, 6);
             tft.print(F(" mV"));
-            tft.clreol();
 
             displayReference = false;
         }
 
-        tft.setCursor(40, 20);
+        tft.setCursor(36, 20);
     if (active[0]) {
-        tft.print(portValues[0]);
-        tft.print(F("  "));
-        tft.print(u1);
+        rprint(portValues[0], 5);
+        rprint(u1, 7);
         tft.print(F(" mV"));
-        tft.clreol();
     }
     else if (clearPrintedData) {
         tft.clreol();
     }
 
-        tft.setCursor(40, 30);
+        tft.setCursor(36, 30);
     if (active[1]) {
-        tft.print(portValues[1]);
-        tft.print(F("  "));
-        tft.print(i1);
+        rprint(portValues[1], 5);
+        rprint(i1, 6);
         tft.print(F(" mA"));
-        tft.clreol();
     }
     else if (clearPrintedData) {
         tft.clreol();
     }
 
-        tft.setCursor(40, 40);
+        tft.setCursor(36, 40);
     if (active[2]) {
-        tft.print(portValues[2]);
-        tft.print(F("  "));
-        tft.print(u2);
+        rprint(portValues[2], 5);
+        rprint(u2, 6);
         tft.print(F(" mV"));
-        tft.clreol();
     }
     else if (clearPrintedData) {
         tft.clreol();
     }
 
-        tft.setCursor(40, 50);
+        tft.setCursor(36, 50);
     if (active[3]) {
-        tft.print(portValues[3]);
-        tft.print(F("  "));
-        tft.print(i2);
+        rprint(portValues[3], 5);
+        rprint(i2, 6);
         tft.print(F(" mA"));
-        tft.clreol();
 
         tft.setCursor(0, 60);
-        tft.print(mAs2 / 3600);
+        rprint(mAs2 / 3600, 6);
         tft.print(F(" mAh"));
-        tft.clreol();
     }
     else if (clearPrintedData) {
         tft.clreol();
@@ -468,31 +474,6 @@ void displayValues(int)
 */
     }
 }
-
-void printXdigits(int number, byte digits, bool leadingZero)
-{
-    char lead = leadingZero ? '0' : ' ';
-    if (digits >= 4 && number < 1000)
-        tft.print(lead);
-    if (digits >= 3 && number < 100)
-        tft.print(lead);
-    if (digits >= 2 && number < 10)
-        tft.print(lead);
-    tft.print(number);
-}
-/*
-void printXdigits(float number, byte digits, byte digits2, bool leadingZero)
-{
-    char lead = leadingZero ? '0' : ' ';
-    if (digits >= 4 && number < 1000)
-        tft.print(lead);
-    if (digits >= 3 && number < 100)
-        tft.print(lead);
-    if (digits >= 2 && number < 10)
-        tft.print(lead);
-    tft.print(number, digits2);
-}
-*/
 
 #ifdef USE_MENU
 void menu(int)
