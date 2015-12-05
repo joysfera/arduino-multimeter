@@ -279,7 +279,7 @@ void setup(void)
 void loop() { }
 
 // right aligned print
-void rprint(unsigned long number, byte digits, bool leadingZero = false)
+void ruprint(unsigned long number, byte digits, bool leadingZero = false)
 {
     if (digits > 1 && digits < 10) {
         char lead = leadingZero ? '0' : ' ';
@@ -293,10 +293,20 @@ void rprint(unsigned long number, byte digits, bool leadingZero = false)
     tft.print(number);
 }
 
+void rprint(long number, byte digits, bool leadingZero = false)
+{
+	if (number < 0) {
+		tft.print('-');
+		digits--;
+		number = -number;
+	}
+	ruprint(number, digits, leadingZero);
+}
+
 // right aligned print of value / 10
 void rprint10(unsigned long value, byte digits, bool leadingZero = false)
 {
-    rprint(value / 10, digits);
+    ruprint(value / 10, digits);
     tft.print('.');
     tft.print(value % 10);
 }
