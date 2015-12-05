@@ -110,7 +110,7 @@ unsigned int readVcc()
     delay(2); // Wait for Vref to settle
 
     unsigned int result = 0;
-    for(byte i = PRECCOUNT[precision]; i--; i) {
+    for(byte i = PRECCOUNT[precision]; i; i--) {
         ADCSRA |= _BV(ADSC); // Start conversion
         while (bit_is_set(ADCSRA,ADSC)); // measuring
         result += ADCW;
@@ -168,7 +168,7 @@ int AnalogRead(byte index)
         value = setReferenceAndRead(port, internal);
     }
 
-    for(byte i = PRECCOUNT[precision] - 1; i--; i) {
+    for(byte i = PRECCOUNT[precision] - 1; i; i--) {
         // value += analogRead(port);
         value += setReferenceAndRead(port, internal);
     }
@@ -284,7 +284,7 @@ void ruprint(unsigned long number, byte digits, bool leadingZero = false)
     if (digits > 1 && digits < 10) {
         char lead = leadingZero ? '0' : ' ';
         unsigned long range = 10;
-        for(byte i = digits-1; i--; i) {
+        for(byte i = digits-1; i; i--) {
             if (number < range)
                 tft.print(lead);
             range *= 10;
@@ -356,7 +356,7 @@ void displayValues(int)
         printHeader = false;
         tft.setTextSize(1);
         tft.setCursor(4, 1);
-        unsigned long val;
+        unsigned long val = 0;
         bool mA = false;
         unsigned long mAs;
         if (active[0]) {
@@ -385,11 +385,11 @@ void displayValues(int)
         tft.setTextColor(ST7735_YELLOW, ST7735_BLACK);
         tft.setTextSize(4);
         tft.setCursor(8, 12);
-        rprint(val, 5);
+        ruprint(val, 5);
 
         tft.setCursor(8, 56);
         if (mA) {
-            rprint(mAs / 3600, 5);
+            ruprint(mAs / 3600, 5);
         }
     }
     else {
@@ -437,7 +437,7 @@ void displayValues(int)
         tft.setCursor(36, 20);
     if (active[0]) {
         rprint(portValues[0], 5);
-        rprint(u1, 7);
+        ruprint(u1, 7);
         tft.print(F(" mV"));
     }
     else if (clearPrintedData) {
@@ -447,7 +447,7 @@ void displayValues(int)
         tft.setCursor(36, 30);
     if (active[1]) {
         rprint(portValues[1], 5);
-        rprint(i1, 6);
+        ruprint(i1, 6);
         tft.print(F(" mA"));
     }
     else if (clearPrintedData) {
@@ -457,7 +457,7 @@ void displayValues(int)
         tft.setCursor(36, 40);
     if (active[2]) {
         rprint(portValues[2], 5);
-        rprint(u2, 6);
+        ruprint(u2, 6);
         tft.print(F(" mV"));
     }
     else if (clearPrintedData) {
@@ -467,11 +467,11 @@ void displayValues(int)
         tft.setCursor(36, 50);
     if (active[3]) {
         rprint(portValues[3], 5);
-        rprint(i2, 6);
+        ruprint(i2, 6);
         tft.print(F(" mA"));
 
         tft.setCursor(0, 60);
-        rprint(mAs2 / 3600, 6);
+        ruprint(mAs2 / 3600, 6);
         tft.print(F(" mAh"));
     }
     else if (clearPrintedData) {
