@@ -71,7 +71,7 @@ unsigned int vccVoltage;
 
 unsigned long mAs1, mAs2;
 
-volatile bool active[4] = { false, false, false, true };
+volatile bool active[4] = { false, false, true, true };
 volatile bool largeDisplay;
 volatile bool printHeader;
 bool displayReference;
@@ -200,11 +200,21 @@ void button1(void)
             if (++menuOption >= MENU_MAX)
                 menuOption = 0;
 #else
-            bool x = active[3];
-            active[3] = active[2];
-            active[2] = active[1];
-            active[1] = active[0];
-            active[0] = x;
+            bool x = active[0];
+            bool y = active[2];
+            if (x == y) {
+                x = true;
+                y = false;
+            }
+            else if (x) {
+                x = false;
+                y = true;
+            }
+            else {
+                x = y = true;
+            }
+            active[0] = active[1] = x;
+            active[2] = active[3] = y;
             clearPrintedData = true;
 #endif
         }
