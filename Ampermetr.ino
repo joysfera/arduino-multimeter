@@ -338,6 +338,18 @@ void measure(int)
 #endif
 }
 
+void bigprint(const __FlashStringHelper *x, unsigned long val)
+{
+    tft.setTextColor(ST7735_WHITE, ST7735_BLACK);
+    tft.setTextSize(1);
+    tft.println(x);
+
+    tft.setTextColor(ST7735_YELLOW, ST7735_BLACK);
+    tft.setTextSize(4);
+    ruprint(val, 5);
+    tft.println();
+}
+
 void displayValues(int)
 {
     unsigned long u1 = (milli[0] * DIVIDER_U1) >> (PRECSHIFT[precision] + 10);
@@ -354,42 +366,20 @@ void displayValues(int)
     tft.setTextColor(ST7735_WHITE, ST7735_BLACK);
     if (largeDisplay) {
         printHeader = false;
-        tft.setTextSize(1);
         tft.setCursor(4, 1);
-        unsigned long val = 0;
-        bool mA = false;
-        unsigned long mAs;
         if (active[0]) {
-            val = u1;
-            mAs = mAs1;
-            tft.print(F("Jack: voltage [mV]"));
+            bigprint(F("Jack: voltage [mV]"), u1);
         }
-        else if (active[1]) {
-            val = i1;
-            mA = true;
-            mAs = mAs1;
-            tft.print(F("Jack: current [mA]"));
+        if (active[1]) {
+            bigprint(F("Jack: current [mA]"), i1);
+            bigprint(F("Jack: power [mAh]"), mAs1 / 3600);
         }
-        else if (active[2]) {
-            val = u2;
-            mAs = mAs2;
-            tft.print(F("USB: voltage [mV] "));
+        if (active[2]) {
+            bigprint(F("USB: voltage [mV] "), u2);
         }
-        else if (active[3]) {
-            val = i2;
-            mA = true;
-            mAs = mAs2;
-            tft.print(F("USB: current [mA] "));
-        }
-
-        tft.setTextColor(ST7735_YELLOW, ST7735_BLACK);
-        tft.setTextSize(4);
-        tft.setCursor(8, 12);
-        ruprint(val, 5);
-
-        tft.setCursor(8, 56);
-        if (mA) {
-            ruprint(mAs / 3600, 5);
+        if (active[3]) {
+            bigprint(F("USB: current [mA] "), i2);
+            bigprint(F("USB: power [mAh]"), mAs2 / 3600);
         }
     }
     else {
