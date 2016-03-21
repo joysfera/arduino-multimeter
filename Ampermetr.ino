@@ -92,6 +92,12 @@ volatile byte menuValue[MENU_MAX];
 
 volatile bool clearPrintedData;
 
+void clreol()
+{
+    // NB: requires the protected member variables to be public
+    tft.fillRect(tft.cursor_x, tft.cursor_y, tft._width - tft.cursor_x, tft.textsize * 8, tft.textbgcolor);
+}
+
 unsigned int readVcc()
 {
     // Read 1.1V reference against AVcc
@@ -414,7 +420,7 @@ void displayValues(int)
             rprint(ref, 5);
             rprint10(refVoltage10, 6);
             tft.print(F(" mV"));
-            tft.clreol();
+            clreol();
 
             tft.setCursor(30, 10);
             rprint(vcc, 5);
@@ -431,7 +437,7 @@ void displayValues(int)
         tft.print(F(" mV"));
     }
     else if (clearPrintedData) {
-        tft.clreol();
+        clreol();
     }
 
         tft.setCursor(36, 30);
@@ -441,7 +447,7 @@ void displayValues(int)
         tft.print(F(" mA"));
     }
     else if (clearPrintedData) {
-        tft.clreol();
+        clreol();
     }
 
         tft.setCursor(36, 40);
@@ -451,7 +457,7 @@ void displayValues(int)
         tft.print(F(" mV"));
     }
     else if (clearPrintedData) {
-        tft.clreol();
+        clreol();
     }
 
         tft.setCursor(36, 50);
@@ -465,7 +471,7 @@ void displayValues(int)
         tft.print(F(" mAh"));
     }
     else if (clearPrintedData) {
-        tft.clreol();
+        clreol();
     }
 
         clearPrintedData = false;
@@ -474,7 +480,7 @@ void displayValues(int)
         tft.setCursor(30, 80);
         tft.print(measureTime);
         tft.print(F(" ms"));
-        tft.clreol();
+        clreol();
 
 /*
         for(byte i = 0; i < sizeof(PORTS); i++) {
