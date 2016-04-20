@@ -94,8 +94,10 @@ volatile bool clearPrintedData;
 
 void clreol()
 {
-    // NB: requires the protected member variables to be public
-    tft.fillRect(tft.cursor_x, tft.cursor_y, tft._width - tft.cursor_x, tft.textsize * 8, tft.textbgcolor);
+    // NB: requires these two new functions to be added to Adafruit_GFX.h:
+    // uint8_t getTextSize(void) const { return textsize; }
+    // uint16_t getTextBgColor(void) const { return textbgcolor; }
+    tft.fillRect(tft.getCursorX(), tft.getCursorY(), tft.width() - tft.getCursorX(), tft.getTextSize() * 8, tft.getTextBgColor());
 }
 
 unsigned int readVcc()
